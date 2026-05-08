@@ -237,6 +237,64 @@
       font-size: 0.9rem;
       color: var(--muted);
     }
+
+    .history-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 30px;
+      margin-top: 30px;
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+    }
+    .history-panel h3 {
+      margin-top: 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .history-gallery {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding-bottom: 15px;
+    }
+    .history-gallery::-webkit-scrollbar {
+      height: 8px;
+    }
+    .history-gallery::-webkit-scrollbar-track {
+      background: var(--bg);
+      border-radius: 4px;
+    }
+    .history-gallery::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+    .history-card {
+      min-width: 220px;
+      background: #000;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      flex-shrink: 0;
+      transition: transform 0.2s ease;
+    }
+    .history-card:hover {
+      transform: translateY(-5px);
+      border-color: var(--muted);
+    }
+    .history-card img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+    }
+    .history-card-body {
+      padding: 12px;
+      font-size: 0.85rem;
+      background: var(--surface);
+    }
   </style>
 </head>
 
@@ -263,6 +321,9 @@
       </div>
 
       <div>
+        <div class="metric" style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 5px;">
+          <span>Overall Session Avg</span> <strong id="overallAvgVal" style="color: var(--blue);">--%</strong>
+        </div>
         <div class="metric"><span>Students Detected</span> <strong id="studentVal">0</strong></div>
         <div class="metric"><span>Total Scans</span> <strong id="scanCount">0</strong></div>
         <div class="metric"><span>Last Update</span> <strong id="lastScan">--:--:--</strong></div>
@@ -287,8 +348,70 @@
     </div>
   </div>
 
+  <div class="history-panel">
+    <h3>Continuous History Log</h3>
+    <div class="history-gallery" id="historyGallery">
+      <div style="color:var(--muted); padding: 20px;">Loading historical data...</div>
+    </div>
+  </div>
+
   <script>
     const socket = io();
+
+    // History State
+    let totalScoreSum = 0;
+    let totalScoreCount = 0;
+
+    function addHistoryCard(item, prepend=false) {
+        const gallery = document.getElementById('historyGallery');
+        // Clear loading text on first item
+        if (gallery.innerText.includes('Loading') || gallery.innerText.includes('No history')) {
+            gallery.innerHTML = '';
+        }
+
+        const card = document.createElement('div');
+        card.className = 'history-card';
+        
+        let color = 'var(--red)';
+        if(item.score >= 70) color = 'var(--green)';
+        else if(item.score >= 40) color = 'var(--orange)';
+
+        card.innerHTML = `
+            <img src="${item.image_url}" alt="Capture">
+            <div class="history-card-body">
+                <div style="color: var(--muted); margin-bottom: 8px; font-weight: 600;">${item.timestamp}</div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong style="color: ${color}; font-size: 1.1rem;">${item.score}%</strong>
+                    <span class="badge" style="padding: 3px 8px;">👥 ${item.students}</span>
+                </div>
+            </div>
+        `;
+        
+        if(prepend) {
+            gallery.prepend(card);
+        } else {
+            gallery.appendChild(card);
+        }
+
+        // Update overall
+        totalScoreSum += item.score;
+        totalScoreCount++;
+        document.getElementById('overallAvgVal').innerText = Math.round(totalScoreSum / totalScoreCount) + '%';
+    }
+
+    // Fetch initial history
+    fetch('/api/history')
+        .then(res => res.json())
+        .then(data => {
+            const gallery = document.getElementById('historyGallery');
+            if(data.length === 0) {
+                gallery.innerHTML = '<div style="color:var(--muted); padding: 20px;">No history available yet. Waiting for first scan...</div>';
+            } else {
+                gallery.innerHTML = '';
+                // The API returns newest first (DESC), so we just append them in order to show newest on the left
+                data.forEach(item => addHistoryCard(item, false));
+            }
+        });
 
     // 1. Receive processed image
     socket.on('live_stream', (data) => {
@@ -347,6 +470,11 @@
           </div>`;
       });
       document.getElementById('emoList').innerHTML = emoHTML;
+
+      // Handle new history item
+      if (data.new_history_item) {
+          addHistoryCard(data.new_history_item, true);
+      }
     });
 
     // 3. Monitor Camera Status

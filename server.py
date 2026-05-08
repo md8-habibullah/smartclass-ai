@@ -10,8 +10,11 @@ import logging
 import numpy as np
 import threading
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO
+import sqlite3
+import json
+from pathlib import Path
 
 # Suppress TensorFlow noise
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -28,6 +31,59 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  [%(levelname)s]  %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger("monitor")
+
+# ─── Persistent Storage ────────────────────────────────
+DB_FILE = "classroom_data.db"
+CAPTURES_DIR = Path("captures")
+CAPTURES_DIR.mkdir(exist_ok=True)
+
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS history
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  timestamp TEXT,
+                  score INTEGER,
+                  students INTEGER,
+                  alert BOOLEAN,
+                  emotions TEXT,
+                  image_path TEXT)''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def save_to_history(ts, score, students, alert, emo_counts, frame):
+    try:
+        # Save image
+        safe_ts = ts.replace(":", "-").replace(" ", "_")
+        filename = f"capture_{safe_ts}.jpg"
+        filepath = CAPTURES_DIR / filename
+        cv2.imwrite(str(filepath), frame)
+
+        # Save to DB
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("INSERT INTO history (timestamp, score, students, alert, emotions, image_path) VALUES (?, ?, ?, ?, ?, ?)",
+                  (ts, score, students, alert, json.dumps(emo_counts), filename))
+        conn.commit()
+        
+        # Pruning old records (keep last 2000)
+        c.execute("SELECT id, image_path FROM history ORDER BY id DESC LIMIT -1 OFFSET 2000")
+        old_records = c.fetchall()
+        for rec_id, img_path in old_records:
+            try:
+                (CAPTURES_DIR / img_path).unlink(missing_ok=True)
+            except Exception as e:
+                pass
+            c.execute("DELETE FROM history WHERE id=?", (rec_id,))
+        
+        conn.commit()
+        conn.close()
+        return f"/captures/{filename}"
+    except Exception as e:
+        log.warning(f"Storage error: {e}")
+        return None
 
 # ─── Shared State ────────────────────────────────
 frame_queue = queue.Queue(maxsize=2) # Keep it small to avoid processing old frames
@@ -132,6 +188,9 @@ def ai_worker():
                 foot_y = annotated.shape[0] - 10
                 cv2.putText(annotated, "LOW ENGAGEMENT  Teacher Alert Active", (8, foot_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 50, 240), 2)
 
+            # Save to persistent storage
+            img_url = save_to_history(ts, avg_score, n, alert, emo_counts, annotated)
+
             # Encode to base64 for WebSockets
             _, buffer = cv2.imencode('.jpg', annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
             b64_img = base64.b64encode(buffer).decode('utf-8')
@@ -148,7 +207,17 @@ def ai_worker():
 
                 # Emit to Socket.IO
                 socketio.emit('live_stream', {'image': img_data})
-                socketio.emit('analysis_update', app_state)
+                socketio.emit('analysis_update', {
+                    **app_state,
+                    'new_history_item': {
+                        "timestamp": ts,
+                        "score": avg_score,
+                        "students": n,
+                        "alert": alert,
+                        "emotions": emo_counts,
+                        "image_url": img_url or img_data # Fallback to b64 if save failed
+                    }
+                })
 
         except Exception as e:
             log.warning(f"DeepFace processing error: {e}")
@@ -203,6 +272,35 @@ def upload_frame():
             pass
 
     return "OK", 200
+
+@app.route("/api/history")
+def api_history():
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT timestamp, score, students, alert, emotions, image_path FROM history ORDER BY id DESC LIMIT 50")
+        rows = c.fetchall()
+        conn.close()
+        
+        history_list = []
+        for r in rows:
+            history_list.append({
+                "timestamp": r[0],
+                "score": r[1],
+                "students": r[2],
+                "alert": bool(r[3]),
+                "emotions": json.loads(r[4]),
+                "image_url": f"/captures/{r[5]}"
+            })
+        
+        return jsonify(history_list)
+    except Exception as e:
+        log.error(f"Error fetching history: {e}")
+        return jsonify([])
+
+@app.route("/captures/<filename>")
+def serve_capture(filename):
+    return send_from_directory(CAPTURES_DIR, filename)
 
 
 if __name__ == "__main__":
