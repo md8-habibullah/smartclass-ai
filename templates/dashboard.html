@@ -1,827 +1,372 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>AI Classroom Monitor</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-    <style>
-      /* ── Reset & Base ── */
-      *,
-      *::before,
-      *::after {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      :root {
-        --bg: #070b14;
-        --surface: #0d1525;
-        --border: #1a2640;
-        --text: #d8e4f0;
-        --muted: #5a7090;
-        --green: #1affa0;
-        --orange: #ffaa40;
-        --red: #ff4545;
-        --blue: #4ab0ff;
-        --card-r: 14px;
-      }
-      html,
-      body {
-        height: 100%;
-      }
-      body {
-        font-family: "Segoe UI", system-ui, sans-serif;
-        background: var(--bg);
-        color: var(--text);
-        font-size: 14px;
-        padding: 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        min-height: 100vh;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Classroom Monitor</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #151b2b;
+      --border: #222e45;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --green: #10b981;
+      --orange: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --surface-glow: rgba(16, 185, 129, 0.05);
+    }
 
-      /* ── Header ── */
-      .header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--card-r);
-        padding: 12px 20px;
-      }
-      .header-left {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-      }
-      .header-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: var(--green);
-        letter-spacing: 0.4px;
-      }
-      .header-sub {
-        font-size: 0.78rem;
-        color: var(--muted);
-        margin-top: 2px;
-      }
-      .header-right {
-        display: flex;
-        align-items: center;
-        gap: 18px;
-      }
-      #clock {
-        font-size: 0.9rem;
-        color: var(--muted);
-        font-variant-numeric: tabular-nums;
-      }
+    * { box-sizing: border-box; }
 
-      /* Device badges */
-      .badge {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 5px 12px;
-        border-radius: 20px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        border: 1px solid;
-        transition: all 0.4s;
-      }
-      .badge .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-      }
-      .badge.ok {
-        border-color: var(--green);
-        color: var(--green);
-        background: rgba(26, 255, 160, 0.08);
-      }
-      .badge.ok .dot {
-        background: var(--green);
-        box-shadow: 0 0 6px var(--green);
-        animation: pulse 2s infinite;
-      }
-      .badge.warn {
-        border-color: var(--orange);
-        color: var(--orange);
-        background: rgba(255, 170, 64, 0.08);
-      }
-      .badge.warn .dot {
-        background: var(--orange);
-      }
-      .badge.off {
-        border-color: var(--muted);
-        color: var(--muted);
-        background: transparent;
-      }
-      .badge.off .dot {
-        background: var(--muted);
-      }
-      @keyframes pulse {
-        0%,
-        100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.4;
-        }
-      }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 30px;
+    }
 
-      /* ── Alert Banner ── */
-      #alertBanner {
-        display: none;
-        background: rgba(255, 69, 69, 0.1);
-        border: 2px solid var(--red);
-        border-radius: var(--card-r);
-        padding: 13px 20px;
-        text-align: center;
-        font-size: 1.05rem;
-        font-weight: 700;
-        color: var(--red);
-        animation: blink-border 1.4s infinite;
-      }
-      @keyframes blink-border {
-        0%,
-        100% {
-          border-color: var(--red);
-        }
-        50% {
-          border-color: rgba(255, 69, 69, 0.3);
-        }
-      }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface);
+      padding: 20px 30px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      margin-bottom: 30px;
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+    }
 
-      /* ── Waiting Banner ── */
-      #waitBanner {
-        background: rgba(74, 176, 255, 0.08);
-        border: 1px solid var(--border);
-        border-radius: var(--card-r);
-        padding: 12px 20px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 14px;
-      }
-      #waitBanner .wt {
-        color: var(--blue);
-        font-weight: 600;
-      }
-      #waitBanner .ws {
-        color: var(--muted);
-        font-size: 0.82rem;
-      }
-      .cam-ip-row {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      #camIpInput {
-        background: var(--bg);
-        border: 1px solid var(--border);
-        color: var(--text);
-        border-radius: 8px;
-        padding: 6px 12px;
-        font-size: 0.82rem;
-        width: 150px;
-        outline: none;
-      }
-      #camIpInput:focus {
-        border-color: var(--blue);
-      }
-      #setCamBtn {
-        background: var(--blue);
-        color: #000;
-        border: none;
-        border-radius: 8px;
-        padding: 6px 14px;
-        cursor: pointer;
-        font-weight: 700;
-        font-size: 0.8rem;
-      }
-      #setCamBtn:hover {
-        opacity: 0.85;
-      }
+    .title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #10b981, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
 
-      /* ── Main Grid ── */
-      .main-grid {
-        display: grid;
-        grid-template-columns: 340px 1fr;
-        gap: 14px;
-      }
+    .status-area {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
 
-      /* ── Left panel ── */
-      .left-panel {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-      }
+    .cam-ip {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 500;
+      font-family: monospace;
+    }
 
-      /* Score card */
-      .score-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--card-r);
-        padding: 24px 20px;
-        text-align: center;
-      }
-      .score-label {
-        font-size: 0.75rem;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 1px;
-      }
-      .score-value {
-        font-size: 5.5rem;
-        font-weight: 800;
-        line-height: 1;
-        margin: 8px 0;
-        transition: color 0.5s;
-      }
-      .score-bar-wrap {
-        background: var(--border);
-        border-radius: 6px;
-        height: 8px;
-        margin: 12px 0 10px;
-      }
-      .score-bar {
-        height: 8px;
-        border-radius: 6px;
-        transition:
-          width 0.6s,
-          background 0.6s;
-      }
-      .level-pill {
-        display: inline-block;
-        padding: 5px 20px;
-        border-radius: 20px;
-        font-size: 0.88rem;
-        font-weight: 700;
-        border: 1px solid;
-        transition: all 0.4s;
-      }
+    .badge {
+      padding: 6px 16px;
+      border-radius: 30px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      border: 1px solid var(--muted);
+      color: var(--muted);
+      text-transform: uppercase;
+      transition: all 0.3s ease;
+    }
 
-      /* Metric cards */
-      .metrics {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-      }
-      .mc {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--card-r);
-        padding: 16px;
-        text-align: center;
-      }
-      .mc .mv {
-        font-size: 2rem;
-        font-weight: 700;
-      }
-      .mc .ml {
-        font-size: 0.72rem;
-        color: var(--muted);
-        margin-top: 4px;
-      }
+    .badge.online {
+      border-color: var(--green);
+      color: var(--green);
+      background: rgba(16, 185, 129, 0.1);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+    }
 
-      /* ── Video panel ── */
-      .video-panel {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--card-r);
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-      }
-      .panel-header {
-        padding: 11px 16px;
-        border-bottom: 1px solid var(--border);
-        font-size: 0.8rem;
-        color: var(--muted);
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      .video-panel img {
-        width: 100%;
-        display: block;
-        flex: 1;
-        object-fit: contain;
-        background: var(--bg);
-        min-height: 260px;
-        max-height: 380px;
-      }
-      .no-feed {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: var(--muted);
-        gap: 10px;
-        min-height: 260px;
-        font-size: 0.9rem;
-      }
-      .no-feed .icon {
-        font-size: 2.5rem;
-        opacity: 0.4;
-      }
-      .spinner {
-        width: 32px;
-        height: 32px;
-        border: 3px solid var(--border);
-        border-top-color: var(--blue);
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-      }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
+    .alert {
+      display: none;
+      background: rgba(239, 68, 68, 0.1);
+      border: 2px solid var(--red);
+      color: var(--red);
+      padding: 15px;
+      border-radius: 12px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 1.2rem;
+      margin-bottom: 20px;
+      animation: blink 1.5s infinite;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+    }
 
-      /* ── Bottom grid ── */
-      .bottom-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 14px;
-      }
-      .chart-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--card-r);
-        padding: 18px;
-      }
-      .chart-card h3 {
-        font-size: 0.78rem;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 14px;
-      }
+    @keyframes blink {
+      50% { opacity: 0.7; box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }
+    }
 
-      /* Emotion bars */
-      .emo-list {
-        display: flex;
-        flex-direction: column;
-        gap: 9px;
-      }
-      .emo-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-      .emo-name {
-        width: 68px;
-        text-align: right;
-        color: var(--muted);
-        font-size: 0.78rem;
-      }
-      .emo-track {
-        flex: 1;
-        background: var(--border);
-        border-radius: 4px;
-        height: 12px;
-        overflow: hidden;
-      }
-      .emo-fill {
-        height: 100%;
-        border-radius: 4px;
-        transition: width 0.5s ease;
-      }
-      .emo-n {
-        width: 20px;
-        text-align: right;
-        font-weight: 700;
-        font-size: 0.8rem;
-      }
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 30px;
+    }
 
-      .color-g {
-        color: var(--green);
-      }
-      .color-o {
-        color: var(--orange);
-      }
-      .color-r {
-        color: var(--red);
-      }
-    </style>
-  </head>
-  <body>
-    <!-- ── Header ── -->
-    <header class="header">
-      <div class="header-left">
-        <div>
-          <div class="header-title">🏫 AI Classroom Monitor</div>
-          <div class="header-sub">
-            Hotspot: Spider &nbsp;|&nbsp; Real-time Engagement Analysis
-          </div>
-        </div>
-      </div>
-      <div class="header-right">
-        <div class="badge off" id="badgeCam">
-          <span class="dot"></span><span>CAM</span>
-        </div>
-        <div class="badge off" id="badgeOled">
-          <span class="dot"></span><span>OLED</span>
-        </div>
-        <span id="clock">--:--:--</span>
-      </div>
-    </header>
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+      position: relative;
+      overflow: hidden;
+    }
 
-    <!-- ── Alert / Wait Banners ── -->
-    <div id="alertBanner">
-      ⚠ &nbsp;LOW ENGAGEMENT DETECTED — TEACHER ALERT ACTIVE
+    .panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+
+    .panel h3 {
+      margin-top: 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    .score-container {
+      text-align: center;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+
+    .score-value {
+      font-size: 5.5rem;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--green);
+      transition: color 0.5s ease;
+      text-shadow: 0 0 40px rgba(16, 185, 129, 0.2);
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    
+    .metric:last-child { border: none; }
+
+    .metric span { color: var(--muted); font-size: 0.95rem; }
+    .metric strong { font-size: 1.1rem; font-weight: 600; }
+
+    .video-container {
+      width: 100%;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      min-height: 500px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      position: relative;
+      box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+    }
+
+    #videoFeed {
+      max-width: 100%;
+      height: auto;
+      display: none;
+      border-radius: 12px;
+    }
+
+    .loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      color: var(--muted);
+    }
+    
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    .emo-row {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 12px;
+    }
+
+    .emo-name {
+      width: 70px;
+      text-align: right;
+      font-size: 0.85rem;
+      text-transform: capitalize;
+      color: var(--text);
+    }
+
+    .emo-track {
+      flex: 1;
+      height: 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .emo-fill {
+      height: 100%;
+      border-radius: 10px;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      background: linear-gradient(90deg, var(--blue), var(--green));
+    }
+
+    .emo-val {
+      width: 30px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="header">
+    <div class="title">AI Classroom Monitor</div>
+    <div class="status-area">
+      <span id="camIPLabel" class="cam-ip">Awaiting Connection...</span>
+      <div id="badgeCam" class="badge">OFFLINE</div>
     </div>
-
-    <div id="waitBanner">
-      <div>
-        <div class="wt">📡 Waiting for ESP32-CAM to connect…</div>
-        <div class="ws">
-          ESP32-CAM will auto-register when it joins the hotspot. Or set IP
-          manually:
-        </div>
-      </div>
-      <div class="cam-ip-row">
-        <input id="camIpInput" type="text" placeholder="e.g. 10.42.0.23" />
-        <button id="setCamBtn" onclick="setCamIP()">Set IP</button>
-      </div>
-    </div>
-
-    <!-- ── Main Grid ── -->
-    <div class="main-grid">
-      <!-- Left: Score + Metrics -->
-      <div class="left-panel">
-        <div class="score-card">
-          <div class="score-label">Class Engagement Score</div>
-          <div class="score-value color-g" id="scoreVal">--</div>
-          <div class="score-bar-wrap">
-            <div
-              class="score-bar"
-              id="scoreBar"
-              style="width: 0%; background: var(--green)"
-            ></div>
-          </div>
-          <div
-            class="level-pill"
-            id="levelPill"
-            style="border-color: var(--muted); color: var(--muted)"
-          >
-            WAITING
-          </div>
-        </div>
-
-        <div class="metrics">
-          <div class="mc">
-            <div class="mv color-g" id="studentVal">--</div>
-            <div class="ml">👥 Students Detected</div>
-          </div>
-          <div class="mc">
-            <div class="mv color-o" id="topEmoVal">--</div>
-            <div class="ml">😊 Top Emotion</div>
-          </div>
-          <div class="mc">
-            <div class="mv" id="scanCount">0</div>
-            <div class="ml">📊 Total Scans</div>
-          </div>
-          <div class="mc">
-            <div class="mv" id="lastScan">--</div>
-            <div class="ml">🕐 Last Scan</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right: Video feed -->
-      <div class="video-panel">
-        <div class="panel-header">
-          <span>📹 Live Camera Feed — Annotated</span>
-          <span id="camIPLabel" style="color: var(--blue)">No camera</span>
-        </div>
-        <div id="noFeedDiv" class="no-feed">
-          <div class="spinner"></div>
-          <span>Waiting for ESP32-CAM stream…</span>
-        </div>
-        <img
-          id="videoFeed"
-          src="/video_feed"
-          alt=""
-          style="display: none"
-          onload="
-            this.style.display = 'block';
-            document.getElementById('noFeedDiv').style.display = 'none';
-          "
-          onerror="
-            this.style.display = 'none';
-            document.getElementById('noFeedDiv').style.display = 'flex';
-          "
-        />
-      </div>
-    </div>
-
-    <!-- ── Bottom Grid ── -->
-    <div class="bottom-grid">
-      <!-- Engagement history chart -->
-      <div class="chart-card">
-        <h3>📈 Engagement History</h3>
-        <canvas id="histChart" height="120"></canvas>
-      </div>
-
-      <!-- Emotion breakdown -->
-      <div class="chart-card">
-        <h3>🎭 Emotion Breakdown</h3>
-        <div class="emo-list" id="emoList">
-          <div style="color: var(--muted); text-align: center; padding: 20px">
-            Waiting for data…
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Captured Images Gallery ── -->
-    <div
-      style="
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--card-r);
-        padding: 20px;
-        margin-top: 20px;
-      "
-    >
-      <h3 style="margin-bottom: 12px; color: var(--green)">
-        📸 Captured Frames (Every 5 Seconds)
-      </h3>
-      <div
-        id="capturesGallery"
-        style="
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 12px;
-          max-height: 600px;
-          overflow-y: auto;
-        "
-      >
-        <div
-          style="
-            grid-column: 1/-1;
-            color: var(--muted);
-            text-align: center;
-            padding: 30px;
-          "
-        >
-          Loading captured images...
-        </div>
-      </div>
-    </div>
-
-    <script>
-      // ── Chart ──────────────────────────────────
-      const histChart = new Chart(
-        document.getElementById("histChart").getContext("2d"),
-        {
-          type: "line",
-          data: {
-            labels: [],
-            datasets: [
-              {
-                label: "Score %",
-                data: [],
-                borderColor: "#1affa0",
-                backgroundColor: "rgba(26,255,160,.1)",
-                fill: true,
-                tension: 0.4,
-                pointRadius: 3,
-                pointBackgroundColor: "#1affa0",
-              },
-            ],
-          },
-          options: {
-            animation: { duration: 300 },
-            plugins: { legend: { labels: { color: "#5a7090", boxWidth: 12 } } },
-            scales: {
-              y: {
-                min: 0,
-                max: 100,
-                grid: { color: "#1a2640" },
-                ticks: { color: "#5a7090", callback: (v) => v + "%" },
-              },
-              x: { grid: { color: "#1a2640" }, ticks: { color: "#5a7090" } },
-            },
-          },
-        },
-      );
-
-      // ── Emotion colors ──
-      const EMO_COL = {
-        happy: "#1affa0",
-        surprise: "#b47bfa",
-        neutral: "#4ab0ff",
-        fear: "#fb923c",
-        sad: "#38d4f8",
-        angry: "#f87171",
-        disgust: "#facc15",
-      };
-      const ALL_EMOS = [
-        "happy",
-        "surprise",
-        "neutral",
-        "fear",
-        "sad",
-        "angry",
-        "disgust",
-      ];
-
-      // ── Clock ──
-      setInterval(() => {
-        document.getElementById("clock").textContent =
-          new Date().toLocaleTimeString();
-      }, 1000);
-
-      // ── Score color helper ──
-      function scoreStyle(score) {
-        if (score >= 70)
-          return {
-            color: "#1affa0",
-            bg: "rgba(26,255,160,.08)",
-            border: "#1affa0",
-            text: "🟢 ENGAGED",
-          };
-        if (score >= 40)
-          return {
-            color: "#ffaa40",
-            bg: "rgba(255,170,64,.08)",
-            border: "#ffaa40",
-            text: "🟡 NEUTRAL",
-          };
-        return {
-          color: "#ff4545",
-          bg: "rgba(255,69,69,.08)",
-          border: "#ff4545",
-          text: "🔴 BORING!",
-        };
-      }
-
-      // ── Set CAM IP manually ──
-      async function setCamIP() {
-        const ip = document.getElementById("camIpInput").value.trim();
-        if (!ip) return;
-        await fetch("/api/set_cam_ip", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ip }),
-        });
-      }
-
-      // ── Badge helper ──
-      function setBadge(id, state) {
-        const el = document.getElementById(id);
-        el.className = "badge " + (state ? "ok" : "off");
-      }
-
-      // ── Main data fetch ──
-      const socket = io();
-      socket.on("update", (data) => {
-        const {
-          score,
-          students,
-          alert,
-          level,
-          emotions,
-          history,
-          last_scan,
-          scan_count,
-          cam_connected,
-          cam_status,
-          cam_ip,
-          oled_connected,
-        } = data;
-
-        // ── Device badges ──
-        setBadge("badgeCam", cam_connected);
-        setBadge("badgeOled", oled_connected);
-        document.getElementById("camIPLabel").textContent = cam_ip
-          ? `${cam_ip}  •  ${cam_status}`
-          : "No camera";
-
-        // ── Wait banner ──
-        document.getElementById("waitBanner").style.display = cam_connected
-          ? "none"
-          : "flex";
-
-        // ── Alert banner ──
-        document.getElementById("alertBanner").style.display = alert
-          ? "block"
-          : "none";
-
-        // ── Score ──
-        const sv = document.getElementById("scoreVal");
-        const sb = document.getElementById("scoreBar");
-        const sp = document.getElementById("levelPill");
-        const st = scoreStyle(score);
-        sv.textContent = cam_connected && students > 0 ? score + "%" : "--";
-        sv.style.color = st.color;
-        sb.style.width = score + "%";
-        sb.style.background = st.color;
-        sp.textContent = cam_connected ? st.text : "WAITING";
-        sp.style.borderColor = st.border;
-        sp.style.color = st.color;
-        sp.style.background = st.bg;
-
-        // ── Metrics ──
-        document.getElementById("studentVal").textContent = students || "--";
-        document.getElementById("scanCount").textContent = scan_count;
-        document.getElementById("lastScan").textContent = last_scan || "--";
-
-        const emos = emotions || {};
-        const topKey = Object.keys(emos).length
-          ? Object.keys(emos).reduce((a, b) => (emos[a] > emos[b] ? a : b))
-          : null;
-        document.getElementById("topEmoVal").textContent = topKey
-          ? topKey.charAt(0).toUpperCase() + topKey.slice(1)
-          : "--";
-
-        // ── History chart ──
-        if (history && history.length) {
-          histChart.data.labels = history.map((h) => h.time);
-          histChart.data.datasets[0].data = history.map((h) => h.score);
-          histChart.update();
-        }
-
-        // ── Emotion bars ──
-        const maxCnt = Math.max(1, ...Object.values(emos));
-        const eList = document.getElementById("emoList");
-        if (Object.keys(emos).length === 0) {
-          eList.innerHTML =
-            '<div style="color:var(--muted);text-align:center;padding:20px">Waiting for data…</div>';
-          return;
-        }
-        eList.innerHTML = ALL_EMOS.map((e) => {
-          const cnt = emos[e] || 0;
-          const pct = Math.round((cnt / maxCnt) * 100);
-          const col = EMO_COL[e] || "#aaa";
-          return `
-      <div class="emo-row">
-        <span class="emo-name">${e}</span>
-        <div class="emo-track">
-          <div class="emo-fill" style="width:${pct}%;background:${col}"></div>
-        </div>
-        <span class="emo-n" style="color:${col}">${cnt}</span>
-      </div>`;
-        }).join("");
-      });
-
-      // ── Fetch and display captures ──
-      async function fetchCaptures() {
-        try {
-          const res = await fetch("/api/captures");
-          const { captures } = await res.json();
-
-          const gallery = document.getElementById("capturesGallery");
-          if (!captures || captures.length === 0) {
-            gallery.innerHTML =
-              '<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:30px">No captures yet. Waiting for frames...</div>';
-            return;
-          }
-
-          gallery.innerHTML = captures
-            .map(
-              (c, i) => `
-      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .3s" 
-           onclick="document.getElementById('modalImg').src='/captured/${c.filename}'; document.getElementById('modal').style.display='block'">
-        <img src="/captured/${c.filename}" alt="" style="width:100%;height:140px;object-fit:cover;background:var(--bg)"/>
-        <div style="padding:8px;font-size:.75rem;color:var(--muted)">
-          <div style="color:var(--text);font-weight:600">${c.score}</div>
-          <div>${c.timestamp}</div>
-          <div>👥 ${c.students}</div>
-        </div>
-      </div>
-    `,
-            )
-            .join("");
-        } catch (e) {
-          console.error("Fetch captures error:", e);
-        }
-      }
-
-      // ── Modal for fullscreen image ──
-      document.body.insertAdjacentHTML(
-        "beforeend",
-        `
-  <div id="modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);z-index:999;cursor:pointer" onclick="this.style.display='none'">
-    <img id="modalImg" src="" alt="" style="max-width:90vw;max-height:90vh;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"/>
   </div>
-`,
-      );
 
-      // Fetch captures periodically
-      setInterval(fetchCaptures, 5500);
-      fetchCaptures();
-    </script>
-  </body>
+  <div id="alertBanner" class="alert">
+    ⚠ LOW ENGAGEMENT DETECTED — TEACHER ALERT ACTIVE ⚠
+  </div>
+
+  <div class="grid">
+    <!-- Left Panel: Metrics -->
+    <div class="panel">
+      <h3>Class Engagement</h3>
+      <div class="score-container">
+        <div id="scoreVal" class="score-value">--%</div>
+      </div>
+
+      <div>
+        <div class="metric"><span>Students Detected</span> <strong id="studentVal">0</strong></div>
+        <div class="metric"><span>Total Scans</span> <strong id="scanCount">0</strong></div>
+        <div class="metric"><span>Last Update</span> <strong id="lastScan">--:--:--</strong></div>
+      </div>
+
+      <h3 style="margin-top: 40px;">Emotion Breakdown</h3>
+      <div id="emoList">
+        <div style="color:var(--muted); text-align:center; padding: 20px 0;">Waiting for AI data...</div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Live Feed -->
+    <div class="panel">
+      <h3>Live Analysis Feed</h3>
+      <div class="video-container">
+        <div id="loaderDiv" class="loader">
+          <div class="spinner"></div>
+          <div>Waiting for ESP32-CAM (5s interval)...</div>
+        </div>
+        <img id="videoFeed" src="" alt="Live Feed" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+
+    // 1. Receive processed image
+    socket.on('live_stream', (data) => {
+      const img = document.getElementById('videoFeed');
+      const loader = document.getElementById('loaderDiv');
+      
+      img.src = data.image;
+      img.style.display = 'block';
+      loader.style.display = 'none';
+    });
+
+    // 2. Receive AI stats
+    socket.on('analysis_update', (data) => {
+      // Update Engagement Score
+      const scoreEl = document.getElementById('scoreVal');
+      scoreEl.innerText = data.score + "%";
+      
+      if (data.score >= 70) {
+        scoreEl.style.color = 'var(--green)';
+        scoreEl.style.textShadow = '0 0 40px rgba(16, 185, 129, 0.2)';
+      } else if (data.score >= 40) {
+        scoreEl.style.color = 'var(--orange)';
+        scoreEl.style.textShadow = '0 0 40px rgba(245, 158, 11, 0.2)';
+      } else {
+        scoreEl.style.color = 'var(--red)';
+        scoreEl.style.textShadow = '0 0 40px rgba(239, 68, 68, 0.2)';
+      }
+
+      // Update basic metrics
+      document.getElementById('studentVal').innerText = data.students;
+      document.getElementById('scanCount').innerText = data.scan_count;
+      document.getElementById('lastScan').innerText = data.last_scan;
+
+      // Toggle alert
+      document.getElementById('alertBanner').style.display = data.alert ? 'block' : 'none';
+
+      // Update Emotions
+      const maxCnt = Math.max(1, ...Object.values(data.emotions || {}));
+      const ALL_EMOS = ["happy", "surprise", "neutral", "fear", "sad", "angry", "disgust"];
+
+      let emoHTML = "";
+      ALL_EMOS.forEach(e => {
+        const cnt = (data.emotions || {})[e] || 0;
+        const pct = Math.round((cnt / maxCnt) * 100);
+        
+        let colorGrad = 'linear-gradient(90deg, var(--blue), var(--green))';
+        if (["fear", "sad", "angry", "disgust"].includes(e)) {
+            colorGrad = 'linear-gradient(90deg, var(--orange), var(--red))';
+        }
+
+        emoHTML += `
+          <div class="emo-row">
+            <span class="emo-name">${e}</span>
+            <div class="emo-track"><div class="emo-fill" style="width:${pct}%; background: ${colorGrad}"></div></div>
+            <span class="emo-val">${cnt}</span>
+          </div>`;
+      });
+      document.getElementById('emoList').innerHTML = emoHTML;
+    });
+
+    // 3. Monitor Camera Status
+    socket.on('cam_status', (data) => {
+      const badge = document.getElementById('badgeCam');
+      if (data.status === 'online') {
+        badge.className = "badge online";
+        badge.innerText = "ONLINE";
+        document.getElementById('camIPLabel').innerText = "ESP32 IP: " + data.ip;
+      } else {
+        badge.className = "badge";
+        badge.innerText = "OFFLINE";
+        document.getElementById('camIPLabel').innerText = "Camera Disconnected";
+        
+        // Hide stream on disconnect
+        document.getElementById('videoFeed').style.display = 'none';
+        document.getElementById('loaderDiv').style.display = 'flex';
+        document.querySelector('.loader div:nth-child(2)').innerText = 'Connection Lost. Waiting...';
+      }
+    });
+  </script>
+</body>
 </html>
