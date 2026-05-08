@@ -298,6 +298,34 @@ def api_history():
         log.error(f"Error fetching history: {e}")
         return jsonify([])
 
+@app.route("/api/score")
+def api_score():
+    with state_lock:
+        current_score = app_state["score"]
+        students = app_state["students"]
+        alert = app_state["alert"]
+        level = score_to_level(current_score)
+        
+    overall = current_score
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("SELECT AVG(score) FROM history")
+        row = c.fetchone()
+        conn.close()
+        if row and row[0] is not None:
+            overall = int(row[0])
+    except Exception:
+        pass
+
+    return jsonify({
+        "score": current_score,
+        "students": students,
+        "alert": alert,
+        "overall": overall,
+        "level": level
+    })
+
 @app.route("/captures/<filename>")
 def serve_capture(filename):
     return send_from_directory(CAPTURES_DIR, filename)

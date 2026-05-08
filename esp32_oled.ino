@@ -52,6 +52,7 @@ Adafruit_SSD1306 oled(OLED_W, OLED_H, &Wire, OLED_RST);
 // ─── State ───────────────────────────────────
 struct ClassState {
   int    score    = 0;
+  int    overall  = 0;
   int    students = 0;
   bool   alert    = false;
   String level    = "WAITING";
@@ -106,18 +107,19 @@ void drawNormal() {
   oled.setCursor((128 - sw) / 2, 14);
   oled.print(scoreStr);
 
-  // ── Progress bar ──
-  int barW = map(cs.score, 0, 100, 0, 124);
-  oled.drawRect(2, 38, 124, 8, SSD1306_WHITE);
-  oled.fillRect(2, 38, barW, 8, SSD1306_WHITE);
+  // ── Overall Avg ──
+  oled.setTextSize(1);
+  String avgStr = "Overall Avg: " + String(cs.overall) + "%";
+  oled.setCursor((128 - (avgStr.length() * 6)) / 2, 40);
+  oled.print(avgStr);
 
   // ── Status line ──
   oled.setTextSize(1);
-  oled.setCursor(2, 49);
+  oled.setCursor(2, 53);
   oled.print(cs.level.substring(0,8));
 
   // ── Student count ──
-  oled.setCursor(70, 49);
+  oled.setCursor(70, 53);
   oled.print("N:");
   oled.print(cs.students);
 
@@ -223,10 +225,11 @@ void connectWiFi() {
   delay(500);
 
   // Hardcode Static IP to 10.42.0.154 for OLED board
-  IPAddress local_IP(10, 42, 0, 154);
-  IPAddress gateway(10, 42, 0, 1);
-  IPAddress subnet(255, 255, 255, 0);
-  WiFi.config(local_IP, gateway, subnet);
+  // Disabled statically hardcoding to use DHCP for better hotspot reliability
+  // IPAddress local_IP(10, 42, 0, 154);
+  // IPAddress gateway(10, 42, 0, 1);
+  // IPAddress subnet(255, 255, 255, 0);
+  // WiFi.config(local_IP, gateway, subnet);
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   WiFi.setSleep(false);
@@ -273,6 +276,7 @@ void pollServer() {
 
     if (!err) {
       cs.score    = doc["score"]    | 0;
+      cs.overall  = doc["overall"]  | 0;
       cs.students = doc["students"] | 0;
       cs.alert    = doc["alert"]    | false;
       cs.level    = String((const char*)(doc["level"] | "UNKNOWN"));
