@@ -1,0 +1,112 @@
+╔══════════════════════════════════════════════════════════════╗
+║          AI CLASSROOM MONITOR — SETUP GUIDE                  ║
+╚══════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 0 — Fix the tf-keras error (do this FIRST, only once)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  cd ~/cccoding/SAC
+  source venv/bin/activate
+  pip install tf-keras
+
+  Wait for it to finish, then continue.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Create Laptop Hotspot
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Ubuntu Settings → WiFi → (top right) Turn On Hotspot
+  OR
+  nmcli con add type wifi ifname '*' con-name Spider autoconnect yes \
+    ssid Spider mode ap -- wifi-sec.key-mgmt wpa-psk \
+    wifi-sec.psk "spider-ghost" ipv4.method shared
+
+  After hotspot is ON, check your IP:
+    ip addr show
+  Look for line like: inet 10.42.0.1/24 — that is your laptop IP
+  (It is almost always 10.42.0.1)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Copy project files into SAC folder
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Put these in ~/cccoding/SAC/:
+    server.py
+    templates/
+      dashboard.html
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Start the server
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  cd ~/cccoding/SAC
+  source venv/bin/activate
+  python server.py
+
+  You should see:
+    ╔════════════════════════════════════╗
+    ║  AI CLASSROOM MONITOR — STARTING  ║
+    ╚════════════════════════════════════╝
+
+  Open browser → http://localhost:5000
+  Dashboard will show "Waiting for ESP32-CAM"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — Upload ESP32-CAM code
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Arduino IDE:
+    Tools → Board → AI Thinker ESP32-CAM
+    Tools → Port  → (your port)
+    Open esp32cam/esp32cam.ino
+    Upload
+    Press RST on MB board when "Connecting..." appears
+
+  Serial Monitor @ 115200 baud should show:
+    [WiFi] Connected! IP: 10.42.0.XX
+    [REG] Registered with server ✓
+    [STREAM] http://10.42.0.XX/stream
+
+  Dashboard will automatically show the video feed!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — Upload ESP32 OLED code
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Wire OLED first:
+    OLED VCC → 3.3V
+    OLED GND → GND
+    OLED SDA → GPIO 21
+    OLED SCL → GPIO 22
+
+  Arduino IDE:
+    Install libraries: Adafruit SSD1306, Adafruit GFX, ArduinoJson
+    Tools → Board → ESP32 Dev Module
+    Open esp32_oled/esp32_oled.ino
+    Upload
+
+  OLED will show boot animation, then connect to Spider hotspot,
+  then display class score every 5 seconds.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Problem: "ModuleNotFoundError: tf_keras"
+Fix:     pip install tf-keras
+
+Problem: "No module named deepface"
+Fix:     Make sure venv is activated: source venv/bin/activate
+
+Problem: ESP32-CAM does not auto-register
+Fix:     Enter its IP manually on dashboard top-right input box
+
+Problem: OLED shows "Server Error"
+Fix:     Make sure server.py is running and both devices are on Spider hotspot
+
+Problem: OLED I2C address wrong
+Fix:     Change OLED_ADDR from 0x3C to 0x3D in esp32_oled.ino
+
+Problem: Dashboard video shows "Waiting" even after CAM connected
+Fix:     Check CAM IP in dashboard header — if wrong, type correct IP and click Set IP
