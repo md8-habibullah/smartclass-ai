@@ -68,8 +68,8 @@ def save_to_history(ts, score, students, alert, emo_counts, frame):
                   (ts, score, students, alert, json.dumps(emo_counts), filename))
         conn.commit()
         
-        # Pruning old records (keep last 2000)
-        c.execute("SELECT id, image_path FROM history ORDER BY id DESC LIMIT -1 OFFSET 2000")
+        # Pruning old records (keep last 100)
+        c.execute("SELECT id, image_path FROM history ORDER BY id DESC LIMIT -1 OFFSET 100")
         old_records = c.fetchall()
         for rec_id, img_path in old_records:
             try:

@@ -257,6 +257,7 @@
     }
     .history-gallery {
       display: flex;
+      flex-wrap: nowrap;
       gap: 20px;
       overflow-x: auto;
       padding-bottom: 15px;
@@ -273,13 +274,13 @@
       border-radius: 4px;
     }
     .history-card {
-      min-width: 220px;
+      min-width: 280px;
       background: #000;
       border-radius: 12px;
       border: 1px solid var(--border);
       overflow: hidden;
       flex-shrink: 0;
-      transition: transform 0.2s ease;
+      transition: transform 0.2s ease, border-color 0.2s ease;
     }
     .history-card:hover {
       transform: translateY(-5px);
@@ -287,18 +288,66 @@
     }
     .history-card img {
       width: 100%;
-      height: 140px;
+      height: 180px;
       object-fit: cover;
+      display: block;
     }
     .history-card-body {
       padding: 12px;
       font-size: 0.85rem;
       background: var(--surface);
     }
+    
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.8);
+      backdrop-filter: blur(5px);
+    }
+    .modal-content {
+      background-color: var(--surface);
+      margin: 5% auto;
+      padding: 30px;
+      border: 1px solid var(--border);
+      width: 90%;
+      max-width: 800px;
+      border-radius: 16px;
+      position: relative;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    }
+    .close-btn {
+      position: absolute;
+      right: 20px;
+      top: 15px;
+      color: var(--muted);
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .close-btn:hover { color: var(--red); }
   </style>
 </head>
 
 <body>
+
+  <!-- History Detail Modal -->
+  <div id="historyModal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeModal()">&times;</span>
+      <h2 id="modalTitle" style="margin-top: 0; color: var(--text);">History Details</h2>
+      <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+         <img id="modalImg" src="" style="width: 100%; max-width: 400px; border-radius: 12px; border: 1px solid var(--border); object-fit: contain;">
+         <div id="modalDetails" style="flex: 1; min-width: 250px;">
+            <!-- Dynamic Details -->
+         </div>
+      </div>
+    </div>
+  </div>
 
   <div class="header">
     <div class="title">AI Classroom Monitor</div>
@@ -371,6 +420,8 @@
 
         const card = document.createElement('div');
         card.className = 'history-card';
+        card.style.cursor = 'pointer';
+        card.onclick = () => openModal(item);
         
         let color = 'var(--red)';
         if(item.score >= 70) color = 'var(--green)';
@@ -412,6 +463,60 @@
                 data.forEach(item => addHistoryCard(item, false));
             }
         });
+
+    // Modal Logic
+    function openModal(item) {
+        document.getElementById('historyModal').style.display = 'block';
+        document.getElementById('modalTitle').innerText = 'Capture at ' + item.timestamp;
+        document.getElementById('modalImg').src = item.image_url;
+        
+        let emoHTML = '';
+        const maxCnt = Math.max(1, ...Object.values(item.emotions || {}));
+        const ALL_EMOS = ["happy", "surprise", "neutral", "fear", "sad", "angry", "disgust"];
+        ALL_EMOS.forEach(e => {
+            const cnt = (item.emotions || {})[e] || 0;
+            const pct = Math.round((cnt / maxCnt) * 100);
+            let colorGrad = 'linear-gradient(90deg, var(--blue), var(--green))';
+            if (["fear", "sad", "angry", "disgust"].includes(e)) {
+                colorGrad = 'linear-gradient(90deg, var(--orange), var(--red))';
+            }
+            emoHTML += `
+              <div class="emo-row">
+                <span class="emo-name">${e}</span>
+                <div class="emo-track"><div class="emo-fill" style="width:${pct}%; background: ${colorGrad}"></div></div>
+                <span class="emo-val">${cnt}</span>
+              </div>`;
+        });
+
+        let alertHTML = item.alert ? '<div style="color:var(--red); font-weight:bold; margin-bottom: 15px; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border: 1px solid var(--red);">⚠️ LOW ENGAGEMENT ALERT WAS ACTIVE</div>' : '';
+        let scoreColor = item.score >= 70 ? 'var(--green)' : item.score >= 40 ? 'var(--orange)' : 'var(--red)';
+
+        document.getElementById('modalDetails').innerHTML = `
+            ${alertHTML}
+            <div style="font-size: 2.5rem; color: ${scoreColor}; font-weight: 900; margin-bottom: 10px; line-height: 1;">${item.score}%</div>
+            <div style="color: var(--muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px;">Engagement Score</div>
+            
+            <div style="margin-bottom: 30px; font-size: 1.1rem;">
+                <span style="color: var(--muted);">Students Detected:</span> 
+                <strong>${item.students}</strong>
+            </div>
+            
+            <div style="color: var(--muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;">Emotion Breakdown</div>
+            <div>${emoHTML}</div>
+        `;
+    }
+
+    function closeModal() {
+        document.getElementById('historyModal').style.display = 'none';
+    }
+
+    // Close modal when clicking outside of it
+    window.onclick = function(event) {
+        const modal = document.getElementById('historyModal');
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
 
     // 1. Receive processed image
     socket.on('live_stream', (data) => {
@@ -494,6 +599,15 @@
         document.getElementById('loaderDiv').style.display = 'flex';
         document.querySelector('.loader div:nth-child(2)').innerText = 'Connection Lost. Waiting...';
       }
+    });
+
+    // 4. Robust Horizontal Scrolling via Mouse Wheel
+    const gallery = document.getElementById('historyGallery');
+    gallery.addEventListener('wheel', (evt) => {
+        if (evt.deltaY != 0) {
+            evt.preventDefault();
+            gallery.scrollLeft += evt.deltaY;
+        }
     });
   </script>
 </body>
