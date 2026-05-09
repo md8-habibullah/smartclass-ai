@@ -2,36 +2,61 @@
 
 An AI-powered (Artificial Intelligence) and IoT-based (Internet of Things) system designed to monitor and analyze student engagement in a classroom setting in real-time. This project uses edge hardware (ESP32-CAM) to capture video frames, a Python server running DeepFace for facial emotion recognition, and a secondary ESP32 with an OLED (Organic Light-Emitting Diode) screen to provide the teacher with instant feedback on class attentiveness.
 
+## System Screenshots
+
+<p align="center">
+  <img src="assets/Screenshot%20from%202026-05-08%2019-03-29.png" width="49%" title="Dashboard View">
+  <img src="assets/Screenshot%20from%202026-05-09%2001-03-55.png" width="49%" title="Live Camera Feed">
+</p>
+<p align="center">
+  <img src="assets/Screenshot%20from%202026-05-09%2001-09-41.png" width="49%" title="Emotion Analytics">
+  <img src="assets/Screenshot%20from%202026-05-09%2001-12-58.png" width="49%" title="Student Tracking">
+</p>
+<p align="center">
+  <img src="assets/Screenshot%20from%202026-05-09%2001-14-49.png" width="49%" title="Performance Charts">
+  <img src="assets/Screenshot%20from%202026-05-09%2012-39-06.png" width="49%" title="System Architecture">
+</p>
+<p align="full">
+   <img src="assets/Screenshot%20from%202026-05-09%2003-31-14.png" width="100%" title="Alert System">
+</p>
+
 ## Features
-* **Real-Time Emotion Recognition:** Utilizes DeepFace and MTCNN (Multi-task Cascaded Convolutional Networks) to detect faces and classify emotions (Happy, Surprise, Neutral, Sad, Angry, Disgust, Fear).
-* **Live Web Dashboard:** A Flask-based HUD (Heads-Up Display) using WebSockets for low-latency live video streaming, engagement scoring, and historical data charting.
-* **Teacher Alert System:** An ESP32 Dev Board equipped with an OLED screen polls the server to display the current class score and visually alerts the teacher if engagement drops below 40%.
-* **Persistent Analytics:** Stores all scan metadata (timestamps, scores, student counts, and emotion JSON data) and captured images locally in an SQLite database.
-* **Auto-Pruning Storage:** Automatically manages disk space by only keeping the last 100 captured frames.
+
+- **Real-Time Emotion Recognition:** Utilizes DeepFace and MTCNN (Multi-task Cascaded Convolutional Networks) to detect faces and classify emotions (Happy, Surprise, Neutral, Sad, Angry, Disgust, Fear).
+- **Live Web Dashboard:** A Flask-based HUD (Heads-Up Display) using WebSockets for low-latency live video streaming, engagement scoring, and historical data charting.
+- **Teacher Alert System:** An ESP32 Dev Board equipped with an OLED screen polls the server to display the current class score and visually alerts the teacher if engagement drops below 40%.
+- **Persistent Analytics:** Stores all scan metadata (timestamps, scores, student counts, and emotion JSON data) and captured images locally in an SQLite database.
+- **Auto-Pruning Storage:** Automatically manages disk space by only keeping the last 100 captured frames.
 
 ## Technology Stack
+
 **Software & AI:**
-* **Python:** Core backend server language.
-* **Flask & Flask-SocketIO:** WSGI (Web Server Gateway Interface) web framework and WebSockets for real-time dashboard updates.
-* **DeepFace:** Deep learning facial recognition framework.
-* **MTCNN:** Highly accurate neural network backend for detecting face bounding boxes.
-* **OpenCV (Open Source Computer Vision Library):** Used for image decoding, drawing HUD elements, and encoding frames.
-* **SQLite:** Lightweight, serverless C-language database engine.
+
+- **Python:** Core backend server language.
+- **Flask & Flask-SocketIO:** WSGI (Web Server Gateway Interface) web framework and WebSockets for real-time dashboard updates.
+- **DeepFace:** Deep learning facial recognition framework.
+- **MTCNN:** Highly accurate neural network backend for detecting face bounding boxes.
+- **OpenCV (Open Source Computer Vision Library):** Used for image decoding, drawing HUD elements, and encoding frames.
+- **SQLite:** Lightweight, serverless C-language database engine.
 
 **Hardware:**
-* **ESP32-CAM:** Microcontroller with an integrated camera module for capturing the classroom.
-* **ESP32 Dev Module:** Standard microcontroller for polling the API.
-* **OLED Display (I2C):** Connected to the ESP32 Dev Module to show teacher alerts.
+
+- **ESP32-CAM:** Microcontroller with an integrated camera module for capturing the classroom.
+- **ESP32 Dev Module:** Standard microcontroller for polling the API.
+- **OLED Display (I2C):** Connected to the ESP32 Dev Module to show teacher alerts.
 
 ## Tested Development Environment
+
 This system was built, configured, and tested on the following Linux architecture:
-* **OS:** Zorin OS 18.1 x86_64 (Kernel: 6.17.0-23-generic)
-* **Python Version:** Python 3.12.3 (Strictly isolated in `venv`)
-* **Hardware:** Lenovo IdeaPad Slim 3 (13th Gen Intel i5-13420H @ 12 threads)
-* **Memory:** 8GB RAM (7631MiB)
-* **Graphics:** Intel Raptor Lake-P [UHD Graphics]
+
+- **OS:** Zorin OS 18.1 x86_64 (Kernel: 6.17.0-23-generic)
+- **Python Version:** Python 3.12.3 (Strictly isolated in `venv`)
+- **Hardware:** Lenovo IdeaPad Slim 3 (13th Gen Intel i5-13420H @ 12 threads)
+- **Memory:** 8GB RAM (7631MiB)
+- **Graphics:** Intel Raptor Lake-P [UHD Graphics]
 
 ## System Architecture
+
 1. The **ESP32-CAM** connects to a local Wi-Fi hotspot and sends a captured JPEG frame via an HTTP (Hypertext Transfer Protocol) POST request to the Python server every 5 seconds.
 2. The **Flask Server** receives the frame, queues it, and passes it to the AI worker thread.
 3. **DeepFace** analyzes the frame, generating an engagement score based on aggregated facial emotions.
@@ -42,6 +67,7 @@ This system was built, configured, and tested on the following Linux architectur
 ## Setup & Installation
 
 ### 1. Server Environment (Linux / Debian-based)
+
 It is strictly recommended to run this project within a Python Virtual Environment (`venv`) to prevent dependency conflicts with your system packages. Open your terminal and run the following:
 
 ```bash
@@ -64,15 +90,15 @@ pip install -r requirements.txt
 
 The system relies on a local network bridge. Create a mobile hotspot from your laptop/server with the following credentials to allow the ESP32 boards to auto-connect:
 
-* **SSID (Service Set Identifier):** `Spider`
-* **Password:** `spider-ghost`
+- **SSID (Service Set Identifier):** `Spider`
+- **Password:** `spider-ghost`
 
 ### 3. Hardware Flashing
 
 You will need the Arduino IDE (Integrated Development Environment) to flash the microcontrollers.
 
-* **Camera:** Open `esp32cam.ino` and upload it to the AI Thinker ESP32-CAM board. Detailed instructions are in `ESP32_CAM_INSTRUCTIONS.md`.
-* **OLED Alert Board:** Open `esp32_oled.ino` and upload it to your standard ESP32 Dev Board. Wire the OLED using the I2C (Inter-Integrated Circuit) pins (SDA to 21, SCL to 22). Detailed instructions are in `ESP32_OLED_INSTRUCTIONS.md`.
+- **Camera:** Open `esp32cam.ino` and upload it to the AI Thinker ESP32-CAM board. Detailed instructions are in `ESP32_CAM_INSTRUCTIONS.md`.
+- **OLED Alert Board:** Open `esp32_oled.ino` and upload it to your standard ESP32 Dev Board. Wire the OLED using the I2C (Inter-Integrated Circuit) pins (SDA to 21, SCL to 22). Detailed instructions are in `ESP32_OLED_INSTRUCTIONS.md`.
 
 ## Running the System
 
