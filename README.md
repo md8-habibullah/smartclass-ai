@@ -1,73 +1,90 @@
-# AI Classroom Monitoring System
+# AI Classroom Monitor: Real-Time Engagement Tracking
 
-A robust, real-time edge AI system designed to monitor classroom engagement using an ESP32-CAM and a Flask-based backend server. The system captures continuous live imagery, processes it through deep neural networks to detect faces and analyze emotions, and streams the analyzed metrics to a real-time web dashboard.
+An AI-powered (Artificial Intelligence) and IoT-based (Internet of Things) system designed to monitor and analyze student engagement in a classroom setting in real-time. This project uses edge hardware (ESP32-CAM) to capture video frames, a Python server running DeepFace for facial emotion recognition, and a secondary ESP32 with an OLED (Organic Light-Emitting Diode) screen to provide the teacher with instant feedback on class attentiveness.
 
-## Architecture Overview
+## Features
+* **Real-Time Emotion Recognition:** Utilizes DeepFace and MTCNN (Multi-task Cascaded Convolutional Networks) to detect faces and classify emotions (Happy, Surprise, Neutral, Sad, Angry, Disgust, Fear).
+* **Live Web Dashboard:** A Flask-based HUD (Heads-Up Display) using WebSockets for low-latency live video streaming, engagement scoring, and historical data charting.
+* **Teacher Alert System:** An ESP32 Dev Board equipped with an OLED screen polls the server to display the current class score and visually alerts the teacher if engagement drops below 40%.
+* **Persistent Analytics:** Stores all scan metadata (timestamps, scores, student counts, and emotion JSON data) and captured images locally in an SQLite database.
+* **Auto-Pruning Storage:** Automatically manages disk space by only keeping the last 100 captured frames.
 
-The project is structured into two main components:
-1. **Edge Client (ESP32-CAM)**: Captures high-resolution images at 5-second intervals and securely transmits them to the server over a local Wi-Fi hotspot using standard HTTP POST requests. This decoupled architecture ensures the microcontroller operates purely as a capture device, preventing PSRAM memory fragmentation and guaranteeing long-term stability.
-2. **Central Processing Server (Python/Flask)**: Receives the raw byte streams and places them into a thread-safe queue. A background worker continuously pulls frames from this queue, utilizes the `DeepFace` library (with MTCNN backend) to perform inference, and emits the processed data via `Socket.IO` to the frontend dashboard. 
+## Technology Stack
+**Software & AI:**
+* **Python:** Core backend server language.
+* **Flask & Flask-SocketIO:** WSGI (Web Server Gateway Interface) web framework and WebSockets for real-time dashboard updates.
+* **DeepFace:** Deep learning facial recognition framework.
+* **MTCNN:** Highly accurate neural network backend for detecting face bounding boxes.
+* **OpenCV (Open Source Computer Vision Library):** Used for image decoding, drawing HUD elements, and encoding frames.
+* **SQLite:** Lightweight, serverless C-language database engine.
 
-## Key Features
+**Hardware:**
+* **ESP32-CAM:** Microcontroller with an integrated camera module for capturing the classroom.
+* **ESP32 Dev Module:** Standard microcontroller for polling the API.
+* **OLED Display (I2C):** Connected to the ESP32 Dev Module to show teacher alerts.
 
-- **Asynchronous AI Pipeline**: The system utilizes a queue-based processing architecture, ensuring that network requests from the ESP32 never block during heavy AI inference.
-- **Real-Time Data Streaming**: Implements WebSocket (`Socket.IO`) technology to push live annotated video frames and JSON statistics to the dashboard without requiring page refreshes.
-- **Persistent Data Storage**: Features a built-in SQLite database that persistently logs all historical captures, timestamps, engagement scores, and student counts. 
-- **Automated Storage Management**: Automatically prunes the physical image directory and the SQLite database to retain only the 100 most recent captures, preventing unbounded disk space consumption.
-- **Interactive UI**: The frontend dashboard includes a horizontal continuous history log, overall session averages, and interactive modals to inspect deep emotional breakdowns for any historical capture.
+## Tested Development Environment
+This system was built, configured, and tested on the following Linux architecture:
+* **OS:** Zorin OS 18.1 x86_64 (Kernel: 6.17.0-23-generic)
+* **Python Version:** Python 3.12.3 (Strictly isolated in `venv`)
+* **Hardware:** Lenovo IdeaPad Slim 3 (13th Gen Intel i5-13420H @ 12 threads)
+* **Memory:** 8GB RAM (7631MiB)
+* **Graphics:** Intel Raptor Lake-P [UHD Graphics]
 
-## Setup Instructions
+## System Architecture
+1. The **ESP32-CAM** connects to a local Wi-Fi hotspot and sends a captured JPEG frame via an HTTP (Hypertext Transfer Protocol) POST request to the Python server every 5 seconds.
+2. The **Flask Server** receives the frame, queues it, and passes it to the AI worker thread.
+3. **DeepFace** analyzes the frame, generating an engagement score based on aggregated facial emotions.
+4. **OpenCV** draws bounding boxes and text onto the image, which is then saved to the disk and logged in **SQLite**.
+5. The **Web Dashboard** updates instantly via WebSockets with the annotated frame and new metrics.
+6. The **ESP32 OLED** board polls the `/api/score` endpoint to fetch the latest engagement percentage and updates the physical display on the teacher's desk.
 
-### Hardware Requirements
-- ESP32-CAM Module (AI-Thinker model recommended)
-- Laptop/PC to act as the Central Processing Server
+## Setup & Installation
 
-### Software Installation
+### 1. Server Environment (Linux / Debian-based)
+It is strictly recommended to run this project within a Python Virtual Environment (`venv`) to prevent dependency conflicts with your system packages. Open your terminal and run the following:
 
-1. Clone this repository and navigate to the project root.
-2. Ensure Python 3.10+ is installed on your system.
-3. Set up a virtual environment and install the required dependencies:
 ```bash
+# Clone the repository
+git clone [https://github.com/yourusername/ai-classroom-monitor.git](https://github.com/yourusername/ai-classroom-monitor.git)
+cd ai-classroom-monitor
+
+# Create the virtual environment
 python3 -m venv venv
+
+# Activate the virtual environment
 source venv/bin/activate
+
+# Install all required dependencies
 pip install -r requirements.txt
+
 ```
 
-### Execution
+### 2. Network Configuration
 
-1. **Start the Hotspot**: Configure your laptop to broadcast a Wi-Fi hotspot with the SSID `Spider` and password `spider-ghost`.
-2. **Run the Server**: 
+The system relies on a local network bridge. Create a mobile hotspot from your laptop/server with the following credentials to allow the ESP32 boards to auto-connect:
+
+* **SSID (Service Set Identifier):** `Spider`
+* **Password:** `spider-ghost`
+
+### 3. Hardware Flashing
+
+You will need the Arduino IDE (Integrated Development Environment) to flash the microcontrollers.
+
+* **Camera:** Open `esp32cam.ino` and upload it to the AI Thinker ESP32-CAM board. Detailed instructions are in `ESP32_CAM_INSTRUCTIONS.md`.
+* **OLED Alert Board:** Open `esp32_oled.ino` and upload it to your standard ESP32 Dev Board. Wire the OLED using the I2C (Inter-Integrated Circuit) pins (SDA to 21, SCL to 22). Detailed instructions are in `ESP32_OLED_INSTRUCTIONS.md`.
+
+## Running the System
+
+Ensure your virtual environment is activated (`source venv/bin/activate`), then start the Python server. Upon the first run, the SQLite database `classroom_data.db` and the `captures` directory will automatically generate.
+
 ```bash
-./venv/bin/python server.py
-```
-3. **Deploy ESP32**: Flash the `esp32cam.ino` sketch to your ESP32-CAM. Once powered on, it will automatically connect to the hotspot and begin transmitting.
-4. **Access Dashboard**: Open your web browser and navigate to `http://localhost:5000` (or `http://10.42.0.1:5000`).
+python server.py
 
-## Database Schema
-
-The persistent storage utilizes SQLite. Upon startup, the server executes the following schema initialization:
-
-```sql
-CREATE TABLE IF NOT EXISTS history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp TEXT,
-    score INTEGER,
-    students INTEGER,
-    alert BOOLEAN,
-    emotions TEXT,
-    image_path TEXT
-);
 ```
 
-To prevent storage bloat, the backend executes the following pruning mechanism after every capture, retaining only the 100 most recent records:
+Open your web browser and navigate to `http://localhost:5000` or `http://127.0.0.1:5000` to view the live dashboard. Keep the terminal running to allow continuous processing.
 
-```sql
-SELECT id, image_path FROM history ORDER BY id DESC LIMIT -1 OFFSET 100;
-DELETE FROM history WHERE id=?;
-```
+## 📄 License
 
-## Technical Stack
-- **Microcontroller**: C++, Arduino Core for ESP32, `esp32-camera` driver
-- **Backend**: Python 3, Flask, Flask-SocketIO, SQLite3
-- **Machine Learning**: DeepFace, TensorFlow/Keras, OpenCV
-- **Frontend**: HTML5, Vanilla CSS3, Javascript, Socket.IO Client
+This project is open-source and available under the MIT License.
